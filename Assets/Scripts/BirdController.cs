@@ -1,21 +1,33 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.UI; 
 
 public class BirdController : MonoBehaviour
 {
-    [Header("Hareket Ayarları")]
-    [SerializeField] private float jumpForce = 5f;
+    [Header("Uçuş (Jetpack) Ayarları")]
+    [SerializeField] private float flyForce = 15f;      
+    [SerializeField] private float maxFuel = 100f;      
+    [SerializeField] private float fuelBurnRate = 30f;  // Normal uçuşta harcanan (Biraz düşürdüm)
+    [SerializeField] private float fuelRegenRate = 40f; // Dolma hızı (Biraz yavaşlattım)
+    
+    [Header("Zorlaştırma Ayarı")]
+    [Tooltip("Her tıklamada anında düşecek yakıt miktarı")]
+    [SerializeField] private float ignitionCost = 15f; // TIKLAMA CEZASI!
+
+    [Header("UI Bağlantıları")]
+    [SerializeField] private Image fuelBarFill; 
 
     [Header("Ses Efektleri")]
-    [SerializeField] private AudioClip jumpSound;
     [SerializeField] private AudioClip hitSound;
-    [SerializeField] private AudioClip shieldSound;
+    [SerializeField] private AudioClip shieldSound; 
 
     private Rigidbody2D rb;
-    private AudioSource audioSource;
     private SpriteRenderer spriteRenderer;
-
+    private AudioSource audioSource;
+    
+    private float currentFuel;
     private bool isDead = false;
+    private bool canFly = true; 
     public bool isShielded = false;
 
     void Start()
@@ -23,36 +35,70 @@ public class BirdController : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         audioSource = GetComponent<AudioSource>();
-        if (audioSource == null) audioSource = gameObject.AddComponent<AudioSource>();
+        currentFuel = maxFuel;
     }
 
     void Update()
     {
         if (Time.timeScale == 0 || isDead) return;
 
-        if (Input.GetMouseButtonDown(0))
+        HandleFlight();
+        UpdateFuelUI();
+    }
+
+    private void HandleFlight()
+    {
+        // 1. İLK TIKLAMA CEZASI (Ignition Cost)
+        if (Input.GetMouseButtonDown(0) && canFly)
         {
-            Jump();
+            currentFuel -= ignitionCost;
+            // Ufak bir duman efekti veya ateşleme sesi buraya eklenebilir
+        }
+
+        // 2. SÜREKLİ UÇUŞ
+        if (Input.GetMouseButton(0) && canFly)
+        {
+            rb.linearVelocity = Vector2.up * flyForce; 
+            currentFuel -= fuelBurnRate * Time.deltaTime; 
+
+            // Yakıt biterse
+            if (currentFuel <= 0)
+            {
+                currentFuel = 0;
+                canFly = false; 
+            }
+        }
+        else
+        {
+            // Elini çektiyse yakıt dolsun
+            currentFuel += fuelRegenRate * Time.deltaTime;
+
+            if (currentFuel >= maxFuel)
+            {
+                currentFuel = maxFuel;
+                canFly = true;
+            }
+            // Bar cezaya girdiyse %20 dolmadan uçamasın
+            else if (!canFly && currentFuel > 20f)
+            {
+                canFly = true;
+            }
         }
     }
 
-    private void Jump()
+    private void UpdateFuelUI()
     {
-        rb.linearVelocity = Vector2.up * jumpForce;
-        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+        if (fuelBarFill != null)
+        {
+            fuelBarFill.fillAmount = currentFuel / maxFuel;
+            fuelBarFill.color = canFly ? Color.green : Color.red;
+        }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (isShielded) return;
         if (isDead) return;
-
-        // KALKAN KONTROLÜ
-        if (isShielded)
-        {
-            // Ölümsüzlük devrede, çarpışmayı yoksay
-            Debug.Log("Kalkan korudu!");
-            return;
-        }
 
         isDead = true;
         if (hitSound != null) audioSource.PlayOneShot(hitSound);
@@ -62,40 +108,28 @@ public class BirdController : MonoBehaviour
 
     public void ActivateShield(float duration)
     {
-        // Eğer zaten kalkanlıysa süreyi sıfırlamak için önce eski rutini durdur
-        StopAllCoroutines();
+        StopAllCoroutines(); 
         StartCoroutine(ShieldRoutine(duration));
     }
 
     IEnumerator ShieldRoutine(float duration)
     {
         isShielded = true;
+        Color glowingGold = new Color(6.0f, 4.5f, 0.5f, 1f); 
 
-        // --- FOSFORLU ALTIN RENGİ ---
-        // Normalde renkler 0 ile 1 arasındadır. 
-        // Buraya 1'den büyük değerler girerek "HDR" (Aşırı Parlak) etkisi yaratıyoruz.
-        // R(Kırmızı): 3.0, G(Yeşil): 2.5, B(Mavi): 0.5 -> Kör edici bir altın sarısı!
-        Color glowingGold = new Color(3.0f, 2.5f, 0.5f, 1f);
-
-        // Kuşu boya
         if (spriteRenderer != null) spriteRenderer.color = glowingGold;
-
         if (shieldSound != null) audioSource.PlayOneShot(shieldSound);
-        VibrationManager.VibrateLight();
-
-        // Sürenin bitimine 1 saniye kalana kadar bekle
+        
         yield return new WaitForSeconds(duration - 1f);
 
-        // --- Son 1 Saniye Yanıp Sönme Efekti ---
-        for (int i = 0; i < 5; i++) // 5 kere hızlıca yanıp sön
+        for (int i = 0; i < 5; i++)
         {
-            if (spriteRenderer != null) spriteRenderer.color = Color.white; // Normal
+            if (spriteRenderer != null) spriteRenderer.color = Color.white; 
             yield return new WaitForSeconds(0.1f);
-            if (spriteRenderer != null) spriteRenderer.color = glowingGold; // Parlak
+            if (spriteRenderer != null) spriteRenderer.color = glowingGold; 
             yield return new WaitForSeconds(0.1f);
         }
 
-        // Normale dön
         isShielded = false;
         if (spriteRenderer != null) spriteRenderer.color = Color.white;
     }
