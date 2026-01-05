@@ -1,0 +1,11 @@
+{
+    "name": "Unityceeb4d63cf74678d49af.Space.Tests",
+    "references": [
+        "Unityceeb4d63cf74678d49af.Space"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": []
+}

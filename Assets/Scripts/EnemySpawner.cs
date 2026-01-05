@@ -2,41 +2,45 @@ using UnityEngine;
 
 public class EnemySpawner : MonoBehaviour
 {
-    [SerializeField] private GameObject enemyPrefab;
-    [SerializeField] private float minSpawnTime = 3f;
-    [SerializeField] private float maxSpawnTime = 7f;
-    [SerializeField] private float heightRange = 3f;
+    [Header("Düşman Çeşitleri")]
+    // İŞTE İSTEDİĞİN ARRAY BURADA:
+    [SerializeField] private GameObject[] enemyPrefabs; 
 
-    private float timer = 0f;
-    private float nextSpawnTime;
+    [Header("Spawn Ayarları")]
+    [SerializeField] private float spawnInterval = 4f; // Kaç saniyede bir gelsin?
+    [SerializeField] private float spawnX = 12f;       // Nerede doğsun?
+    [SerializeField] private float minY = -3f;         // En aşağı yükseklik
+    [SerializeField] private float maxY = 3f;          // En yukarı yükseklik
 
-    private void Start()
+    private float timer;
+
+    void Update()
     {
-        SetNextSpawnTime();
-    }
+        if (Time.timeScale == 0) return;
 
-    private void Update()
-    {
         timer += Time.deltaTime;
 
-        if (timer >= nextSpawnTime)
+        if (timer >= spawnInterval)
         {
-            SpawnEnemy();
+            SpawnRandomEnemy();
             timer = 0f;
-            SetNextSpawnTime();
         }
     }
 
-    private void SetNextSpawnTime()
+    void SpawnRandomEnemy()
     {
-        nextSpawnTime = Random.Range(minSpawnTime, maxSpawnTime);
-    }
+        // 1. Array boşsa hata vermesin diye kontrol
+        if (enemyPrefabs.Length == 0) return;
 
-    private void SpawnEnemy()
-    {
-        float randomY = Random.Range(-heightRange, heightRange);
-        Vector3 spawnPos = new Vector3(transform.position.x, randomY, 0);
+        // 2. RASTGELE SEÇİM (0 ile Array uzunluğu arasında)
+        int randomIndex = Random.Range(0, enemyPrefabs.Length);
+        GameObject selectedEnemy = enemyPrefabs[randomIndex];
 
-        Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+        // 3. Rastgele Yükseklik
+        float randomY = Random.Range(minY, maxY);
+        Vector3 spawnPos = new Vector3(spawnX, randomY, 0);
+
+        // 4. Sahneye Yarat
+        Instantiate(selectedEnemy, spawnPos, Quaternion.identity);
     }
 }

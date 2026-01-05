@@ -1,3 +1,7 @@
 ﻿<Solution>
   <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Unityceeb4d63cf74678d49af.Space.csproj" />
+  <Project Path="Unityceeb4d63cf74678d49af.Space.Editor.csproj" />
+  <Project Path="Unityceeb4d63cf74678d49af.Space.Tests.csproj" />
+  <Project Path="Unityceeb4d63cf74678d49af.Space.Editor.Tests.csproj" />
 </Solution>

@@ -1,0 +1,10 @@
+{
+    "name": "Unityceeb4d63cf74678d49af.Space.Editor",
+    "references": [
+      "Unityceeb4d63cf74678d49af.Space"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}

@@ -3,8 +3,8 @@ using UnityEngine;
 public class PipeSpawner : MonoBehaviour
 {
     [SerializeField] private GameObject pipePrefab;
-    [SerializeField] private float heightOffset = 2f;
-    private float timer = 0f;
+    [SerializeField] public float heightOffset = 2f;
+    public float timer = 0f;
 
     private void Start()
     {
@@ -20,7 +20,7 @@ public class PipeSpawner : MonoBehaviour
         else
         {
             SpawnPipe();
-            timer = 0f;
+            timer = -10f;
         }
     }
 

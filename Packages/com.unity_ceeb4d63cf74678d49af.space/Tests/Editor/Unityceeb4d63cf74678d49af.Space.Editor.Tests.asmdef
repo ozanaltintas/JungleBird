@@ -1,0 +1,14 @@
+{
+    "name": "Unityceeb4d63cf74678d49af.Space.Editor.Tests",
+    "references": [
+        "Unityceeb4d63cf74678d49af.Space.Editor",
+        "Unityceeb4d63cf74678d49af.Space"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": []
+}
