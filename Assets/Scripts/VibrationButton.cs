@@ -1,59 +1,62 @@
 ﻿using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UI; // UI işlemleri için şart
 
 public class VibrationButton : MonoBehaviour
 {
-    [Header("Bileşenler")]
-    [SerializeField] private Image buttonImage; // Butonun üzerindeki Image
+    [Header("İkonlar")]
+    [SerializeField] private Sprite vibrationOnSprite;  // Titreşim Açık ikonu (Dalgalı telefon)
+    [SerializeField] private Sprite vibrationOffSprite; // Titreşim Kapalı ikonu (Çizgili telefon)
 
-    [Header("Renk Ayarları")]
-    [SerializeField] private Color onColor = Color.white; // Açıkken (Beyaz)
-    [SerializeField] private Color offColor = new Color(0.5f, 0.5f, 0.5f, 1f); // Kapalıyken (Gri)
+    private Image buttonImage;
+    private bool isVibrationOn = true;
 
-    private bool isVibrationOff = false;
+    // Bu anahtar kelimeyi hafızaya kaydederken kullanacağız
+    private const string VIB_KEY = "VibrationEnabled";
 
     void Start()
     {
-        // 1. Hafızadan durumu oku (0: Açık, 1: Kapalı)
-        // Varsayılan olarak 0 (Açık) gelir.
-        isVibrationOff = PlayerPrefs.GetInt("IsVibrationOff", 0) == 1;
+        buttonImage = GetComponent<Image>();
 
-        // 2. Yöneticiye durumu bildir
-        VibrationManager.hapticsEnabled = !isVibrationOff;
+        // Oyun başladığında hafızadaki eski ayarı hatırla
+        // GetInt(Anahtar, Varsayılan Değer) -> Bulamazsa 1 (Açık) kabul etsin
+        isVibrationOn = PlayerPrefs.GetInt(VIB_KEY, 1) == 1;
 
-        // 3. Buton rengini güncelle
-        UpdateIcon();
+        UpdateUI();
     }
 
+    // Bu fonksiyonu Butonun "On Click" olayına bağlayacağız
     public void ToggleVibration()
     {
-        // Durumu tersine çevir
-        isVibrationOff = !isVibrationOff;
-
-        // Hafızaya kaydet
-        PlayerPrefs.SetInt("IsVibrationOff", isVibrationOff ? 1 : 0);
+        isVibrationOn = !isVibrationOn; // Durumu tersine çevir
+        
+        // Durumu hafızaya kaydet (Açıksa 1, kapalıysa 0)
+        PlayerPrefs.SetInt(VIB_KEY, isVibrationOn ? 1 : 0);
         PlayerPrefs.Save();
 
-        // Yöneticiye yeni durumu bildir
-        VibrationManager.hapticsEnabled = !isVibrationOff;
-
-        // Görseli güncelle
-        UpdateIcon();
+        UpdateUI();
+        Debug.Log("Titreşim Durumu: " + (isVibrationOn ? "Açık" : "Kapalı"));
     }
 
-    private void UpdateIcon()
+    void UpdateUI()
     {
-        if (buttonImage == null) return;
-
-        if (isVibrationOff)
+        if (isVibrationOn)
         {
-            // TİTREŞİM KAPALI -> Rengi Gri yap
-            buttonImage.color = offColor;
+            // İkonu "Açık" yap
+            buttonImage.sprite = vibrationOnSprite; 
         }
         else
         {
-            // TİTREŞİM AÇIK -> Rengi Beyaz yap
-            buttonImage.color = onColor;
+            // İkonu "Kapalı" yap
+            buttonImage.sprite = vibrationOffSprite; 
         }
+    }
+
+    // --- DİĞER SCRİPTLERİN KULLANMASI İÇİN YARDIMCI FONKSİYON ---
+    // Başka bir kod (mesela kuş çarpınca) titreşim yapıp yapmayacağını
+    // bu fonksiyona sorarak öğrenecek.
+    public static bool CanVibrate()
+    {
+        // Kayıtlı ayarı oku, bulamazsan 1 (true) döndür
+        return PlayerPrefs.GetInt(VIB_KEY, 1) == 1;
     }
 }

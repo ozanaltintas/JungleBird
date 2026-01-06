@@ -1,23 +1,18 @@
 using UnityEngine;
-using System.Collections;
 using UnityEngine.UI; 
+using System.Collections; // IEnumerator için gerekli
 
 public class BirdController : MonoBehaviour
 {
-    [Header("Uçuş (Jetpack) Ayarları")]
-    [SerializeField] private float flyForce = 15f;      
+    [Header("Jetpack Ayarları")]
+    [SerializeField] private float flyForce = 12f;      
     [SerializeField] private float maxFuel = 100f;      
-    [SerializeField] private float fuelBurnRate = 30f;  // Normal uçuşta harcanan (Biraz düşürdüm)
-    [SerializeField] private float fuelRegenRate = 40f; // Dolma hızı (Biraz yavaşlattım)
-    
-    [Header("Zorlaştırma Ayarı")]
-    [Tooltip("Her tıklamada anında düşecek yakıt miktarı")]
-    [SerializeField] private float ignitionCost = 15f; // TIKLAMA CEZASI!
+    [SerializeField] private float fuelBurnRate = 30f;  
+    [SerializeField] private float fuelRegenRate = 50f; 
+    [SerializeField] private float ignitionCost = 15f; 
 
-    [Header("UI Bağlantıları")]
+    [Header("UI & Görsel")]
     [SerializeField] private Image fuelBarFill; 
-
-    [Header("Ses Efektleri")]
     [SerializeField] private AudioClip hitSound;
     [SerializeField] private AudioClip shieldSound; 
 
@@ -26,9 +21,11 @@ public class BirdController : MonoBehaviour
     private AudioSource audioSource;
     
     private float currentFuel;
-    private bool isDead = false;
     private bool canFly = true; 
-    public bool isShielded = false;
+    private bool isDead = false;
+    
+    // CherryCollect.cs'in erişmesi gereken değişken
+    public bool isShielded = false; 
 
     void Start()
     {
@@ -43,69 +40,77 @@ public class BirdController : MonoBehaviour
         if (Time.timeScale == 0 || isDead) return;
 
         HandleFlight();
-        UpdateFuelUI();
+        UpdateUI();
     }
 
     private void HandleFlight()
     {
-        // 1. İLK TIKLAMA CEZASI (Ignition Cost)
+        // 1. TIKLAMA CEZASI
         if (Input.GetMouseButtonDown(0) && canFly)
         {
             currentFuel -= ignitionCost;
-            // Ufak bir duman efekti veya ateşleme sesi buraya eklenebilir
         }
 
-        // 2. SÜREKLİ UÇUŞ
-        if (Input.GetMouseButton(0) && canFly)
+        // 2. UÇUŞ
+        if (Input.GetMouseButton(0) && canFly && currentFuel > 0)
         {
             rb.linearVelocity = Vector2.up * flyForce; 
             currentFuel -= fuelBurnRate * Time.deltaTime; 
 
-            // Yakıt biterse
             if (currentFuel <= 0)
             {
                 currentFuel = 0;
-                canFly = false; 
+                canFly = false; // Motor kilitlendi
             }
         }
         else
         {
-            // Elini çektiyse yakıt dolsun
-            currentFuel += fuelRegenRate * Time.deltaTime;
+            // 3. DOLUM
+            if (currentFuel < maxFuel)
+            {
+                currentFuel += fuelRegenRate * Time.deltaTime;
+            }
 
+            // KİLİT AÇILMA ŞARTI: Sadece %100 dolunca
             if (currentFuel >= maxFuel)
             {
                 currentFuel = maxFuel;
-                canFly = true;
-            }
-            // Bar cezaya girdiyse %20 dolmadan uçamasın
-            else if (!canFly && currentFuel > 20f)
-            {
-                canFly = true;
+                canFly = true; 
             }
         }
     }
 
-    private void UpdateFuelUI()
+    private void UpdateUI()
     {
         if (fuelBarFill != null)
         {
             fuelBarFill.fillAmount = currentFuel / maxFuel;
+            // Kilitliyse Kırmızı, Açıksa Yeşil
             fuelBarFill.color = canFly ? Color.green : Color.red;
         }
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        // KALKAN VARSA ÖLME
         if (isShielded) return;
-        if (isDead) return;
 
+        if (isDead) return;
+        
         isDead = true;
         if (hitSound != null) audioSource.PlayOneShot(hitSound);
-        VibrationManager.VibrateHeavy();
+        
+        // Titreşim kontrolü (VibrationButton ile entegre)
+        if (VibrationButton.CanVibrate())
+        {
+            // Handheld.Vibrate() veya kendi VibrationManager kodun:
+             // VibrationManager.VibrateHeavy(); 
+        }
+
         GameManager.Instance.GameOver();
     }
 
+    // --- CHERRY COLLECT TARAFINDAN ÇAĞRILAN EKSİK FONKSİYON ---
     public void ActivateShield(float duration)
     {
         StopAllCoroutines(); 
@@ -115,13 +120,16 @@ public class BirdController : MonoBehaviour
     IEnumerator ShieldRoutine(float duration)
     {
         isShielded = true;
-        Color glowingGold = new Color(6.0f, 4.5f, 0.5f, 1f); 
-
-        if (spriteRenderer != null) spriteRenderer.color = glowingGold;
-        if (shieldSound != null) audioSource.PlayOneShot(shieldSound);
         
+        // Altın rengi efekt
+        Color glowingGold = new Color(1f, 0.8f, 0.2f, 1f); 
+        if (spriteRenderer != null) spriteRenderer.color = glowingGold;
+        if (shieldSound != null && audioSource != null) audioSource.PlayOneShot(shieldSound);
+        
+        // Sürenin çoğunu bekle
         yield return new WaitForSeconds(duration - 1f);
 
+        // Son saniye yanıp sön
         for (int i = 0; i < 5; i++)
         {
             if (spriteRenderer != null) spriteRenderer.color = Color.white; 
@@ -130,6 +138,7 @@ public class BirdController : MonoBehaviour
             yield return new WaitForSeconds(0.1f);
         }
 
+        // Normale dön
         isShielded = false;
         if (spriteRenderer != null) spriteRenderer.color = Color.white;
     }
