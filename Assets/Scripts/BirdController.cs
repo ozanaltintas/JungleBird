@@ -1,18 +1,33 @@
 using UnityEngine;
-using UnityEngine.UI; 
-using System.Collections; // IEnumerator için gerekli
+using System.Collections;
 
 public class BirdController : MonoBehaviour
 {
-    [Header("Jetpack Ayarları")]
-    [SerializeField] private float flyForce = 12f;      
-    [SerializeField] private float maxFuel = 100f;      
-    [SerializeField] private float fuelBurnRate = 30f;  
-    [SerializeField] private float fuelRegenRate = 50f; 
-    [SerializeField] private float ignitionCost = 15f; 
+    [Header("Hız Ayarları")]
+    [SerializeField] private float normalSpeed = 4f; 
+    [SerializeField] private float boostSpeed = 10f; 
 
-    [Header("UI & Görsel")]
-    [SerializeField] private Image fuelBarFill; 
+    [Header("Boost Hissiyatı")]
+    [SerializeField] private float boostKickForce = 5f; 
+
+    [Header("Yakıt & Ceza Sistemi")]
+    [SerializeField] private float maxFuel = 100f;
+    [SerializeField] private float fuelBurnRate = 40f;   
+    [SerializeField] private float fuelRegenRate = 30f;  
+    [SerializeField] private float ignitionCost = 15f;   
+
+    [Header("Referanslar")]
+    [SerializeField] private BoostUI boostUI; // Buraya FuelBarBackground'u sürükle
+
+    [Header("Görsel & Dönüş")]
+    [SerializeField] private float rotationAngle = 25f;        
+    [SerializeField] private float boostRotationAngle = 45f;  
+    [SerializeField] private float turnSmoothness = 12f;
+    [SerializeField] private Color boostColor = new Color(1f, 0.5f, 0.5f); 
+
+    [Header("Sesler")]
+    [SerializeField] private AudioClip moveSound; 
+    [SerializeField] private AudioClip boostStartSound; 
     [SerializeField] private AudioClip hitSound;
     [SerializeField] private AudioClip shieldSound; 
 
@@ -21,17 +36,19 @@ public class BirdController : MonoBehaviour
     private AudioSource audioSource;
     
     private float currentFuel;
-    private bool canFly = true; 
+    private bool isMovingUp = true; 
     private bool isDead = false;
+    public bool isShielded = false;
+    private bool isOverheated = false; 
     
-    // CherryCollect.cs'in erişmesi gereken değişken
-    public bool isShielded = false; 
+    private bool wasBoostingLastFrame = false;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
         audioSource = GetComponent<AudioSource>();
+        rb.gravityScale = 0; 
         currentFuel = maxFuel;
     }
 
@@ -39,107 +56,96 @@ public class BirdController : MonoBehaviour
     {
         if (Time.timeScale == 0 || isDead) return;
 
-        HandleFlight();
-        UpdateUI();
+        HandleInput();
+        HandleFuelAndMovement();
+        
+        // --- KUSURSUZ GEÇİŞ BURADA TETİKLENİYOR ---
+        if (boostUI != null)
+        {
+            boostUI.UpdateBoostBar(currentFuel, maxFuel);
+        }
     }
 
-    private void HandleFlight()
+    private void HandleInput()
     {
-        // 1. TIKLAMA CEZASI
-        if (Input.GetMouseButtonDown(0) && canFly)
+        if (Input.GetMouseButtonDown(0))
         {
-            currentFuel -= ignitionCost;
-        }
-
-        // 2. UÇUŞ
-        if (Input.GetMouseButton(0) && canFly && currentFuel > 0)
-        {
-            rb.linearVelocity = Vector2.up * flyForce; 
-            currentFuel -= fuelBurnRate * Time.deltaTime; 
-
-            if (currentFuel <= 0)
+            isMovingUp = !isMovingUp;
+            
+            if (!isOverheated && currentFuel > 0)
             {
-                currentFuel = 0;
-                canFly = false; // Motor kilitlendi
+                currentFuel -= ignitionCost;
+                if (currentFuel <= 0) { currentFuel = 0; isOverheated = true; }
+            }
+
+            if (moveSound != null && audioSource != null) 
+                audioSource.PlayOneShot(moveSound);
+        }
+    }
+
+    private void HandleFuelAndMovement()
+    {
+        float targetSpeed = normalSpeed;
+        float targetAngle = rotationAngle; 
+
+        bool isHolding = Input.GetMouseButton(0);
+        bool isBoosting = false;
+
+        if (isHolding && !isOverheated && currentFuel > 0)
+        {
+            isBoosting = true;
+            targetSpeed = boostSpeed;
+            targetAngle = boostRotationAngle;
+            
+            currentFuel -= fuelBurnRate * Time.deltaTime;
+            if (currentFuel <= 0) { currentFuel = 0; isOverheated = true; }
+
+            if (!wasBoostingLastFrame)
+            {
+                if (boostStartSound != null) audioSource.PlayOneShot(boostStartSound);
             }
         }
         else
         {
-            // 3. DOLUM
-            if (currentFuel < maxFuel)
-            {
-                currentFuel += fuelRegenRate * Time.deltaTime;
-            }
+            isBoosting = false;
+            targetSpeed = normalSpeed;
 
-            // KİLİT AÇILMA ŞARTI: Sadece %100 dolunca
-            if (currentFuel >= maxFuel)
+            if (currentFuel < maxFuel) currentFuel += fuelRegenRate * Time.deltaTime;
+            
+            if (isOverheated && currentFuel >= maxFuel)
             {
                 currentFuel = maxFuel;
-                canFly = true; 
+                isOverheated = false; 
             }
         }
-    }
 
-    private void UpdateUI()
-    {
-        if (fuelBarFill != null)
+        wasBoostingLastFrame = isBoosting;
+
+        if (isMovingUp)
         {
-            fuelBarFill.fillAmount = currentFuel / maxFuel;
-            // Kilitliyse Kırmızı, Açıksa Yeşil
-            fuelBarFill.color = canFly ? Color.green : Color.red;
+            rb.linearVelocity = Vector2.up * targetSpeed;
         }
+        else
+        {
+            rb.linearVelocity = Vector2.down * targetSpeed;
+            targetAngle = -targetAngle;
+        }
+
+        Quaternion targetRotation = Quaternion.Euler(0, 0, targetAngle);
+        transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, turnSmoothness * Time.deltaTime);
+
+        if (!isShielded)
+            spriteRenderer.color = isBoosting ? boostColor : Color.white;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // KALKAN VARSA ÖLME
-        if (isShielded) return;
-
-        if (isDead) return;
-        
+        if (isShielded || isDead) return;
         isDead = true;
         if (hitSound != null) audioSource.PlayOneShot(hitSound);
-        
-        // Titreşim kontrolü (VibrationButton ile entegre)
-        if (VibrationButton.CanVibrate())
-        {
-            // Handheld.Vibrate() veya kendi VibrationManager kodun:
-             // VibrationManager.VibrateHeavy(); 
-        }
-
         GameManager.Instance.GameOver();
     }
 
-    // --- CHERRY COLLECT TARAFINDAN ÇAĞRILAN EKSİK FONKSİYON ---
-    public void ActivateShield(float duration)
-    {
-        StopAllCoroutines(); 
-        StartCoroutine(ShieldRoutine(duration));
-    }
-
-    IEnumerator ShieldRoutine(float duration)
-    {
-        isShielded = true;
-        
-        // Altın rengi efekt
-        Color glowingGold = new Color(1f, 0.8f, 0.2f, 1f); 
-        if (spriteRenderer != null) spriteRenderer.color = glowingGold;
-        if (shieldSound != null && audioSource != null) audioSource.PlayOneShot(shieldSound);
-        
-        // Sürenin çoğunu bekle
-        yield return new WaitForSeconds(duration - 1f);
-
-        // Son saniye yanıp sön
-        for (int i = 0; i < 5; i++)
-        {
-            if (spriteRenderer != null) spriteRenderer.color = Color.white; 
-            yield return new WaitForSeconds(0.1f);
-            if (spriteRenderer != null) spriteRenderer.color = glowingGold; 
-            yield return new WaitForSeconds(0.1f);
-        }
-
-        // Normale dön
-        isShielded = false;
-        if (spriteRenderer != null) spriteRenderer.color = Color.white;
-    }
+    public void ActivateShield(float duration) { StopAllCoroutines(); StartCoroutine(ShieldRoutine(duration)); }
+    IEnumerator ShieldRoutine(float duration) { isShielded = true; Color gold = new Color(1f,0.8f,0.2f); if(spriteRenderer) spriteRenderer.color=gold; yield return new WaitForSeconds(duration-1); for(int i=0;i<5;i++){if(spriteRenderer)spriteRenderer.color=Color.white; yield return new WaitForSeconds(0.1f); if(spriteRenderer)spriteRenderer.color=gold; yield return new WaitForSeconds(0.1f);} isShielded=false; if(spriteRenderer)spriteRenderer.color=Color.white;}
 }
